@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 10 # Increase this timeout value as needed
+    timeout-minutes: 15 # Increase this timeout value as needed
     steps:
       # Harden the runner used by this workflow
       # yamllint disable-line rule:line-length
@@ -34,8 +34,27 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: "Checkout repository"
+      - name: "Checkout action repository"
+        # yamllint disable-line rule:line-length
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # Check out a real ONAP Gradle project into a sub-directory so the
+      # local action can be exercised against a genuine build. The ONAP
+      # portal-ng preferences service is a multi-module Spring Boot 3.x
+      # project that uses the Gradle Wrapper (Gradle 8.14) and JDK 17.
+      - name: "Checkout ONAP Gradle test project (portal-ng-preferences)"
+        # yamllint disable-line rule:line-length
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: "onap/portal-ng-preferences"
+          # Pin to an immutable commit SHA so CI is reproducible and not
+          # vulnerable to upstream branch mutations. Update deliberately
+          # as needed to pick up new fixture changes.
+          ref: "a541c97c9cb9c9d8cca4ea155cc204e0306cdc21"
+          path: "test-project"
+          persist-credentials: false
 
       # Perform setup prior to running test(s)
       - name: "Testing setup step"
@@ -43,12 +62,17 @@ jobs:
         run: |
           # Testing setup step
           echo "Testing setup step"
-          echo "Testing setup step/summary output" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Gradle test project" >> "$GITHUB_STEP_SUMMARY"
+          echo "Using ONAP portal-ng-preferences as the build target" \
+            >> "$GITHUB_STEP_SUMMARY"
+          ls -la test-project
 
       - name: "Running local action: ${{ github.repository }}"
         uses: ./
         with:
-          input: "test input 💬"
+          jdk-version: "17"
+          distribution: "temurin"
+          path: "test-project"
 
       - name: "Validated local action: ${{ github.repository }}"
         shell: bash
@@ -57,13 +81,17 @@ jobs:
           echo "Validated local action: ${{ github.repository }}"
           echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
 
+      # Negative test: pass an invalid JDK version so that
+      # actions/setup-java fails. This proves the action surfaces
+      # setup errors rather than silently swallowing them.
       # yamllint disable-line rule:line-length
       - name: "Running local action: ${{ github.repository }} [Override Failure]"
         uses: ./
         id: failure
         continue-on-error: true
         with:
-          invalid_input: "Some garbage"
+          jdk-version: "not-a-real-jdk-version"
+          path: "test-project"
 
       # Failure testing is also important
       - name: "Error if step above did NOT fail"
