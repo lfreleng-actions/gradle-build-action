@@ -188,6 +188,8 @@ runs:
         build-scan-publish: "${{ inputs.build-scan-publish }}"
         build-scan-terms-of-use-url: "${{ inputs.build-scan-terms-of-use-url }}"
         # yamllint disable-line rule:line-length
+        build-scan-terms-of-use-agree: "${{ inputs.build-scan-terms-of-use-agree }}"
+        # yamllint disable-line rule:line-length
         develocity-url: "${{ inputs.develocity-url }}"
         develocity-access-key: "${{ inputs.develocity-access-key }}"
 
@@ -200,9 +202,12 @@ runs:
       # Use the Gradle Wrapper when no explicit gradle-version was supplied;
       # otherwise invoke the 'gradle' binary placed on PATH by setup-gradle.
       run: |
-        # shellcheck disable=SC2086
+        gradle_build_args=()
+        if [ -n "$GRADLE_BUILD_ARGS" ]; then
+          read -r -a gradle_build_args <<< "$GRADLE_BUILD_ARGS"
+        fi
         if [ -n "${{ inputs.gradle-version }}" ]; then
-          gradle $GRADLE_BUILD_ARGS
+          gradle "${gradle_build_args[@]}"
         else
-          ./gradlew $GRADLE_BUILD_ARGS
+          ./gradlew "${gradle_build_args[@]}"
         fi

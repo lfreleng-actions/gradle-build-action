@@ -104,7 +104,7 @@ over the default.
 | -------------------- | -------- | ----------- | ------------------------------------------------------- |
 | cache-provider       | False    | enhanced    | Caching implementation: `enhanced` or `basic` (MIT)     |
 | cache-disabled       | False    | false       | When `true`, disable all caching                        |
-| cache-read-only      | False    |             | When `true`, restore but do not write cache entries     |
+| cache-read-only      | False    | false       | When `true`, restore but do not write cache entries     |
 | cache-write-only     | False    | false       | When `true`, save but do not restore cache entries      |
 | cache-encryption-key | False    |             | Base64 AES key for configuration-cache data encryption  |
 | cache-cleanup        | False    | on-success  | `never`, `on-success` (default), or `always`            |
