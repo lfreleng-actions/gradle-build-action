@@ -199,6 +199,7 @@ runs:
       working-directory: "${{ inputs.path }}"
       env:
         GRADLE_BUILD_ARGS: "${{ inputs.build-arguments }}"
+        GRADLE_VERSION: "${{ inputs.gradle-version }}"
       # Use the Gradle Wrapper when no explicit gradle-version was supplied;
       # otherwise invoke the 'gradle' binary placed on PATH by setup-gradle.
       run: |
@@ -206,7 +207,7 @@ runs:
         if [ -n "$GRADLE_BUILD_ARGS" ]; then
           read -r -a gradle_build_args <<< "$GRADLE_BUILD_ARGS"
         fi
-        if [ -n "${{ inputs.gradle-version }}" ]; then
+        if [ -n "$GRADLE_VERSION" ]; then
           gradle "${gradle_build_args[@]}"
         else
           ./gradlew "${gradle_build_args[@]}"
