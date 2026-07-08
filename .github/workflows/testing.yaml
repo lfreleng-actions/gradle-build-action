@@ -81,9 +81,11 @@ jobs:
 
       - name: "Validated local action: ${{ github.repository }}"
         shell: bash
+        env:
+          GH_REPOSITORY: "${{ github.repository }}"
         run: |
           # Local action validation
-          echo "Validated local action: ${{ github.repository }}"
+          echo "Validated local action: $GH_REPOSITORY"
           echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
 
       # Negative test: pass an invalid JDK version so that
