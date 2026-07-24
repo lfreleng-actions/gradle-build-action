@@ -24,7 +24,7 @@ steps:
     id: gradle-build
     uses: lfreleng-actions/gradle-build-action@main
     with:
-      jdk-version: "17"
+      java-version: "17"
       distribution: "temurin"
 ```
 
@@ -43,7 +43,7 @@ steps:
     id: gradle-build
     uses: lfreleng-actions/gradle-build-action@main
     with:
-      jdk-version: "21"
+      java-version: "21"
       path: "my-project"
       build-arguments: "clean build -x test"
       dependency-graph: "generate-and-submit"
@@ -68,8 +68,9 @@ steps:
 
 | Name              | Required | Default | Description                                                                    |
 | ----------------- | -------- | ------- | ------------------------------------------------------------------------------ |
-| jdk-version       | False    | 21*     | OpenJDK version. Ignored when the caller provides `java-version-file`          |
-| java-version-file | False    |         | Path to a `.java-version` file (alternative to `jdk-version`)                  |
+| java-version      | False    | 21      | OpenJDK version. Ignored when the caller provides `java-version-file`          |
+| jdk-version       | False    |         | Deprecated alias for `java-version`; wins over it when set and warns           |
+| java-version-file | False    |         | Path to a `.java-version` file (takes precedence over `java-version`)          |
 | distribution      | False    | temurin | OpenJDK distribution                                                           |
 | java-package      | False    | jdk     | Package type: `jdk`, `jre`, `jdk+fx`, or `jre+fx`                              |
 | architecture      | False    |         | Package architecture (defaults to the runner's architecture)                   |
@@ -78,9 +79,9 @@ steps:
 
 <!-- markdownlint-enable MD013 -->
 
-\* JDK 21 serves as the default when the caller omits both `jdk-version`
-and `java-version-file`. Supplying `java-version-file` takes precedence
-over the default.
+\* Supplying `java-version-file` takes precedence over `java-version`.
+The `jdk-version` alias exists for backward compatibility and emits a
+deprecation warning; prefer `java-version` in new callers.
 
 <!-- markdownlint-enable MD013 -->
 
@@ -93,6 +94,8 @@ over the default.
 | path            | False    | .       | Path to the Gradle project (contains gradlew)        |
 | build-arguments | False    | build   | Arguments passed to the Gradle Wrapper               |
 | gradle-version  | False    |         | Specific Gradle version; omit to use project wrapper |
+| artifact-upload | False    | true    | Upload Gradle test reports as a workflow artefact    |
+| artifact-name   | False    |         | Artefact name (defaults to gradle-build plus job)    |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -149,6 +152,7 @@ over the default.
 | java-version      | Actual version of the Java environment installed           |
 | java-distribution | Java distribution the action installed                     |
 | java-home         | Path to the installed Java environment (`JAVA_HOME`)       |
+| artifact-name     | Name of the uploaded test-report artefact (empty if none)  |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -168,9 +172,14 @@ under the hood.
   lists all supported JDK distributions.
 - By default the action runs `./gradlew build` inside the directory
   given by `path`. Override the tasks and flags via `build-arguments`.
+- The action writes a build summary table (JDK, Gradle version, build
+  arguments, and any Build Scan URL) to the job summary, and uploads the
+  Gradle test reports (`build/reports/tests` and `build/test-results`) as
+  a workflow artefact. Set `artifact-upload` to `false` to skip the
+  upload.
 - This action pins
   [gradle/actions/setup-gradle](https://github.com/gradle/actions/tree/main/setup-gradle)
-  to a specific commit SHA (v6.1.0 at time of writing). Upstream
+  to a specific commit SHA (v6.2.0 at time of writing). Upstream
   deprecated `gradle/gradle-build-action` in favour of `setup-gradle`
   (the former now transparently delegates to the latter), so this
   migration gives direct, explicit control over the underlying action

@@ -73,24 +73,48 @@ jobs:
           ls -la test-project
 
       - name: "Running local action: ${{ github.repository }}"
+        id: build
         uses: ./
         with:
-          jdk-version: "17"
+          java-version: "17"
           distribution: "temurin"
           path: "test-project"
 
-      - name: "Validated local action: ${{ github.repository }}"
+      - name: "Validate action outputs"
         shell: bash
         env:
-          GH_REPOSITORY: "${{ github.repository }}"
+          JAVA_VERSION: "${{ steps.build.outputs.java-version }}"
+          GRADLE_VERSION: "${{ steps.build.outputs.gradle-version }}"
+          ARTIFACT_NAME: "${{ steps.build.outputs.artifact-name }}"
         run: |
-          # Local action validation
-          echo "Validated local action: $GH_REPOSITORY"
-          echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
+          # Validate action outputs
+          set -euo pipefail
+          errors=0
+          case "$JAVA_VERSION" in
+            17*) echo "OK: java-version=$JAVA_VERSION" ;;
+            *) echo "Error: want Java 17, got '$JAVA_VERSION'"; errors=1 ;;
+          esac
+          # The Gradle Wrapper drives this build, so setup-gradle does not
+          # report a gradle-version: it only populates that output when an
+          # explicit gradle-version input asks it to provision Gradle.
+          # Treat the value as informational rather than asserting it here.
+          if [ -n "$GRADLE_VERSION" ]; then
+            echo "OK: gradle-version=$GRADLE_VERSION"
+          else
+            echo "Note: gradle-version output empty (Wrapper build)"
+          fi
+          if [ "$ARTIFACT_NAME" = "gradle-build-tests" ]; then
+            echo "OK: artifact-name=$ARTIFACT_NAME"
+          else
+            echo "Error: bad artifact-name '$ARTIFACT_NAME'"
+            errors=1
+          fi
+          exit "$errors"
 
-      # Negative test: pass an invalid JDK version so that
-      # actions/setup-java fails. This proves the action surfaces
-      # setup errors rather than silently swallowing them.
+      # Negative test: pass an invalid JDK version through the deprecated
+      # 'jdk-version' alias so that actions/setup-java fails. This proves
+      # both that the alias still flows through to setup-java and that the
+      # action surfaces setup errors rather than silently swallowing them.
       # yamllint disable-line rule:line-length
       - name: "Running local action: ${{ github.repository }} [Override Failure]"
         uses: ./

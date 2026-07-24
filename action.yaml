@@ -7,10 +7,16 @@ description: "Set up a specific JDK version and run a Gradle build"
 
 inputs:
   # JDK / toolchain
+  java-version:
+    # yamllint disable-line rule:line-length
+    description: "OpenJDK version (ignored when 'java-version-file' is set). Defaults to 21 (LTS)"
+    required: false
+    default: "21"
   jdk-version:
     # yamllint disable-line rule:line-length
-    description: "OpenJDK version (ignored when 'java-version-file' is set). Defaults to 21 (LTS) unless 'java-version-file' is supplied"
+    description: "Deprecated alias for java-version; retained for backward compatibility"
     required: false
+    default: ""
   distribution:
     description: "OpenJDK distribution"
     # yamllint disable-line rule:line-length
@@ -19,7 +25,7 @@ inputs:
     default: "temurin"
   java-version-file:
     # yamllint disable-line rule:line-length
-    description: "Path to a '.java-version' file (alternative to 'jdk-version')"
+    description: "Path to a '.java-version' file (takes precedence over java-version)"
     required: false
   java-package:
     description: "JDK package type: 'jdk', 'jre', 'jdk+fx', or 'jre+fx'"
@@ -52,6 +58,17 @@ inputs:
     # yamllint disable-line rule:line-length
     description: "Gradle version to use. If unset the project's Gradle Wrapper is used"
     required: false
+
+  # Artefact upload
+  artifact-upload:
+    description: "Upload Gradle test reports as a workflow artefact"
+    required: false
+    default: "true"
+  artifact-name:
+    # yamllint disable-line rule:line-length
+    description: "Name for the uploaded artefact (defaults to gradle-build-<job>)"
+    required: false
+    default: ""
 
   # Cache configuration (passed through to setup-gradle)
   cache-provider:
@@ -147,20 +164,50 @@ outputs:
     # yamllint disable-line rule:line-length
     description: "Path to the installed Java environment (equivalent to JAVA_HOME)"
     value: "${{ steps.setup-jdk.outputs.path }}"
+  artifact-name:
+    # yamllint disable-line rule:line-length
+    description: "Name of the uploaded test-report artefact (empty when not uploaded)"
+    value: "${{ steps.summary.outputs.artifact_name }}"
 
 runs:
   using: "composite"
   steps:
+    - name: "Resolve Java version"
+      id: java
+      shell: bash
+      env:
+        JAVA_VERSION: "${{ inputs.java-version }}"
+        JDK_VERSION_ALIAS: "${{ inputs.jdk-version }}"
+        JAVA_VERSION_FILE: "${{ inputs.java-version-file }}"
+      run: |
+        # Resolve the effective Java version. A 'java-version-file' takes
+        # precedence: setup-java reads the version from the file and the
+        # resolved value stays empty (setup-java rejects passing both). The
+        # 'jdk-version' input is a deprecated alias retained for backward
+        # compatibility; when set it wins over 'java-version' and emits a
+        # deprecation warning so existing callers keep working.
+        if [ -n "$JDK_VERSION_ALIAS" ]; then
+          echo "::warning::'jdk-version' is deprecated; use 'java-version'"
+        fi
+        if [ -n "$JAVA_VERSION_FILE" ]; then
+          version=""
+        elif [ -n "$JDK_VERSION_ALIAS" ]; then
+          version="$JDK_VERSION_ALIAS"
+        else
+          version="$JAVA_VERSION"
+        fi
+        # A version string never spans multiple lines; strip any CR/LF so a
+        # crafted value cannot inject extra GITHUB_OUTPUT entries.
+        version=$(printf '%s' "$version" | tr -d '\r\n')
+        printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+        echo "Resolved Java version: ${version:-(from java-version-file)}"
+
     - name: "Setup JDK"
       id: setup-jdk
       # yamllint disable-line rule:line-length
       uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95  # v5.6.0
       with:
-        # Fall back to JDK 21 (current LTS, supported through 2031) only
-        # when neither 'jdk-version' nor 'java-version-file' were given.
-        # setup-java disallows passing both, so prefer the file when set.
-        # yamllint disable-line rule:line-length
-        java-version: "${{ inputs.java-version-file == '' && (inputs.jdk-version != '' && inputs.jdk-version || '21') || '' }}"
+        java-version: "${{ steps.java.outputs.version }}"
         java-version-file: "${{ inputs.java-version-file }}"
         distribution: "${{ inputs.distribution }}"
         java-package: "${{ inputs.java-package }}"
@@ -212,3 +259,79 @@ runs:
         else
           ./gradlew "${gradle_build_args[@]}"
         fi
+
+    - name: "Generate build summary and outputs"
+      id: summary
+      if: always()
+      shell: bash
+      env:
+        JAVA_VERSION: "${{ steps.setup-jdk.outputs.version }}"
+        JAVA_DISTRIBUTION: "${{ steps.setup-jdk.outputs.distribution }}"
+        GRADLE_VERSION: "${{ steps.setup-gradle.outputs.gradle-version }}"
+        BUILD_SCAN_URL: "${{ steps.setup-gradle.outputs.build-scan-url }}"
+        BUILD_ARGUMENTS: "${{ inputs.build-arguments }}"
+        PROJECT_PATH: "${{ inputs.path }}"
+        BUILD_OUTCOME: "${{ steps.run-gradle-build.outcome }}"
+        ARTIFACT_UPLOAD: "${{ inputs.artifact-upload }}"
+        ARTIFACT_NAME_INPUT: "${{ inputs.artifact-name }}"
+        JOB_NAME: "${{ github.job }}"
+      run: |
+        # Summarise the build and publish action outputs
+        set -euo pipefail
+
+        # Sanitise a value for a Markdown table cell: strip CR/LF (which
+        # would break rows or inject extra lines) and escape pipe
+        # characters (which would create spurious columns).
+        md_cell() {
+          printf '%s' "$1" | tr -d '\r\n' | sed 's/|/\\|/g'
+        }
+
+        artifact_name=""
+        if [ "$ARTIFACT_UPLOAD" = "true" ]; then
+          # Strip CR/LF from the supplied name first, so a value made up
+          # only of CR/LF cannot slip past the non-empty check and yield an
+          # empty upload name or inject extra output lines.
+          sanitized_name=$(printf '%s' "$ARTIFACT_NAME_INPUT" | tr -d '\r\n')
+          if [ -n "$sanitized_name" ]; then
+            artifact_name="$sanitized_name"
+          else
+            artifact_name="gradle-build-${JOB_NAME}"
+          fi
+        fi
+        printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+
+        # The step runs with 'if: always()', so reflect the real build
+        # outcome in the header rather than hard-coding success.
+        if [ "$BUILD_OUTCOME" = "success" ]; then
+          header_icon="✅"
+        else
+          header_icon="❌"
+        fi
+
+        {
+          echo "## 🐘 Gradle Build ${header_icon}"
+          echo ""
+          echo "| Key | Value |"
+          echo "|-----|-------|"
+          echo "| Result | $(md_cell "$BUILD_OUTCOME") |"
+          echo "| JDK version | $(md_cell "$JAVA_VERSION") |"
+          echo "| JDK distribution | $(md_cell "$JAVA_DISTRIBUTION") |"
+          echo "| Gradle version | $(md_cell "$GRADLE_VERSION") |"
+          echo "| Build arguments | $(md_cell "$BUILD_ARGUMENTS") |"
+          echo "| Project path | $(md_cell "$PROJECT_PATH") |"
+          if [ -n "$BUILD_SCAN_URL" ]; then
+            echo "| Build scan | $(md_cell "$BUILD_SCAN_URL") |"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: "Upload test reports"
+      if: ${{ always() && inputs.artifact-upload == 'true' }}
+      # yamllint disable-line rule:line-length
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: "${{ steps.summary.outputs.artifact_name }}"
+        path: |
+          ${{ inputs.path }}/**/build/reports/tests/**
+          ${{ inputs.path }}/**/build/test-results/**/*.xml
+        if-no-files-found: ignore
+        retention-days: 7
