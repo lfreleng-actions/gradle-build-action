@@ -46,10 +46,17 @@ inputs:
     required: false
 
   # Project / build configuration
-  path:
+  path_prefix:
     description: "Path to the Gradle project (directory containing gradlew)"
     required: false
     default: "."
+  path:
+    # yamllint disable-line rule:line-length
+    description: "DEPRECATED: use path_prefix instead. Retained for backwards compatibility."
+    required: false
+    default: ""
+    # yamllint disable-line rule:line-length
+    deprecationMessage: "The 'path' input is deprecated; use 'path_prefix' instead. 'path' will be removed in the next major release."
   build-arguments:
     description: "Arguments to pass to the Gradle Wrapper (default: build)"
     required: false
@@ -172,6 +179,45 @@ outputs:
 runs:
   using: "composite"
   steps:
+    # Resolve the project directory from either input. 'path_prefix' is
+    # the canonical name, matching every other build action in this
+    # organisation (maven-, node-, go-, python-, packer-build-action and
+    # build-metadata-action). 'path' is a deprecated alias retained for
+    # backward compatibility; when set it wins over 'path_prefix' and
+    # emits a deprecation warning, mirroring how 'jdk-version' relates
+    # to 'java-version' below.
+    - name: "Resolve project path"
+      id: resolve-path
+      shell: bash
+      env:
+        INPUT_PATH_PREFIX: "${{ inputs.path_prefix }}"
+        INPUT_PATH: "${{ inputs.path }}"
+      run: |
+        # Resolve project path from path_prefix (canonical) or path
+        # (deprecated alias, wins when set).
+        if [ -n "$INPUT_PATH" ]; then
+          echo "::warning::'path' is deprecated; use 'path_prefix'"
+          resolved="$INPUT_PATH"
+        else
+          resolved="$INPUT_PATH_PREFIX"
+        fi
+        # A project path never spans multiple lines; strip any CR/LF so a
+        # crafted value cannot inject extra GITHUB_OUTPUT entries.
+        resolved=$(printf '%s' "$resolved" | tr -d '\r\n')
+        if [ -z "$resolved" ]; then
+          resolved='.'
+        fi
+        # Strip a single trailing slash so './' and '.' behave alike
+        if [ "$resolved" != '/' ]; then
+          resolved="${resolved%/}"
+        fi
+        if [ ! -d "$resolved" ]; then
+          echo "::error::Project directory does not exist: $resolved"
+          exit 1
+        fi
+        printf 'path=%s\n' "$resolved" >> "$GITHUB_OUTPUT"
+        echo "Gradle project path: $resolved"
+
     - name: "Resolve Java version"
       id: java
       shell: bash
@@ -243,7 +289,7 @@ runs:
     - name: "Run Gradle build"
       id: run-gradle-build
       shell: bash
-      working-directory: "${{ inputs.path }}"
+      working-directory: "${{ steps.resolve-path.outputs.path }}"
       env:
         GRADLE_BUILD_ARGS: "${{ inputs.build-arguments }}"
         GRADLE_VERSION: "${{ inputs.gradle-version }}"
@@ -270,7 +316,7 @@ runs:
         GRADLE_VERSION: "${{ steps.setup-gradle.outputs.gradle-version }}"
         BUILD_SCAN_URL: "${{ steps.setup-gradle.outputs.build-scan-url }}"
         BUILD_ARGUMENTS: "${{ inputs.build-arguments }}"
-        PROJECT_PATH: "${{ inputs.path }}"
+        PROJECT_PATH: "${{ steps.resolve-path.outputs.path }}"
         BUILD_OUTCOME: "${{ steps.run-gradle-build.outcome }}"
         ARTIFACT_UPLOAD: "${{ inputs.artifact-upload }}"
         ARTIFACT_NAME_INPUT: "${{ inputs.artifact-name }}"
@@ -331,7 +377,7 @@ runs:
       with:
         name: "${{ steps.summary.outputs.artifact_name }}"
         path: |
-          ${{ inputs.path }}/**/build/reports/tests/**
-          ${{ inputs.path }}/**/build/test-results/**/*.xml
+          ${{ steps.resolve-path.outputs.path }}/**/build/reports/tests/**
+          ${{ steps.resolve-path.outputs.path }}/**/build/test-results/**/*.xml
         if-no-files-found: ignore
         retention-days: 7

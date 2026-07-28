@@ -44,7 +44,7 @@ steps:
     uses: lfreleng-actions/gradle-build-action@main
     with:
       java-version: "21"
-      path: "my-project"
+      path_prefix: "my-project"
       build-arguments: "clean build -x test"
       dependency-graph: "generate-and-submit"
       build-scan-publish: "true"
@@ -89,13 +89,14 @@ deprecation warning; prefer `java-version` in new callers.
 
 <!-- markdownlint-disable MD013 -->
 
-| Name            | Required | Default | Description                                          |
-| --------------- | -------- | ------- | ---------------------------------------------------- |
-| path            | False    | .       | Path to the Gradle project (contains gradlew)        |
-| build-arguments | False    | build   | Arguments passed to the Gradle Wrapper               |
-| gradle-version  | False    |         | Specific Gradle version; omit to use project wrapper |
-| artifact-upload | False    | true    | Upload Gradle test reports as a workflow artefact    |
-| artifact-name   | False    |         | Artefact name (defaults to gradle-build plus job)    |
+| Name            | Required | Default | Description                                                         |
+| --------------- | -------- | ------- | ------------------------------------------------------------------- |
+| path_prefix     | False    | .       | Path to the Gradle project (contains gradlew)                       |
+| path            | False    |         | Deprecated alias for `path_prefix`; wins over it when set and warns |
+| build-arguments | False    | build   | Arguments passed to the Gradle Wrapper                              |
+| gradle-version  | False    |         | Specific Gradle version; omit to use project wrapper                |
+| artifact-upload | False    | true    | Upload Gradle test reports as a workflow artefact                   |
+| artifact-name   | False    |         | Artefact name (defaults to gradle-build plus job)                   |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -158,7 +159,7 @@ deprecation warning; prefer `java-version` in new callers.
 
 ## Requirements/Dependencies
 
-The directory specified by the `path` input (the repository root by
+The directory specified by the `path_prefix` input (the repository root by
 default) must contain a Gradle Wrapper (`gradlew`), unless the caller
 sets an explicit `gradle-version` — in which case the action installs
 that Gradle version and invokes `gradle` directly. The action uses
@@ -171,7 +172,7 @@ under the hood.
 - The [setup-java documentation](https://github.com/actions/setup-java?tab=readme-ov-file#supported-distributions)
   lists all supported JDK distributions.
 - By default the action runs `./gradlew build` inside the directory
-  given by `path`. Override the tasks and flags via `build-arguments`.
+  given by `path_prefix`. Override the tasks and flags via `build-arguments`.
 - The action writes a build summary table (JDK, Gradle version, build
   arguments, and any Build Scan URL) to the job summary, and uploads the
   Gradle test reports (`build/reports/tests` and `build/test-results`) as
