@@ -39,12 +39,6 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: "Checkout action repository"
-        # yamllint disable-line rule:line-length
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       # Check out a real ONAP Gradle project into a sub-directory so the
       # local action can be exercised against a genuine build. The ONAP
       # portal-ng preferences service is a multi-module Spring Boot 3.x
@@ -74,7 +68,7 @@ jobs:
 
       - name: "Running local action: ${{ github.repository }}"
         id: build
-        uses: ./
+        uses: $/
         with:
           java-version: "17"
           distribution: "temurin"
@@ -117,7 +111,7 @@ jobs:
       # action surfaces setup errors rather than silently swallowing them.
       # yamllint disable-line rule:line-length
       - name: "Running local action: ${{ github.repository }} [Override Failure]"
-        uses: ./
+        uses: $/
         id: failure
         continue-on-error: true
         with:
