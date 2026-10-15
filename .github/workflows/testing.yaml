@@ -126,3 +126,93 @@ jobs:
           # Error if step above did NOT fail
           echo "Error: previous test step did NOT fail ❌"
           exit 1
+
+  ### Shared Gradle/Java version matrix ###
+  versions:
+    name: "Java/Gradle versions"
+    permissions: {}
+    # yamllint disable-line rule:line-length
+    uses: lfreleng-actions/java-workflows/.github/workflows/java-maven-versions.yaml@7bb1071df52ffc3fb4c2280511fe257041e259d8  # v0.7.0
+
+  ### Run the action on every supported Gradle/Java pair ###
+  compatibility:
+    # yamllint disable-line rule:line-length
+    name: "Compatibility (Gradle ${{ matrix.gradle.line }}, JDK ${{ matrix.java }})"
+    needs: versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # gradle_cells lists only supported pairs (Gradle 8 cannot run on
+      # Java 25), so use it as-is rather than as a cross product.
+      matrix:
+        include: ${{ fromJSON(needs.versions.outputs.gradle_cells) }}
+    steps:
+      # Harden the runner used by this workflow
+      # yamllint disable-line rule:line-length
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      # The fixture and the check script live in this repository
+      # yamllint disable-line rule:line-length
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Running local action: ${{ github.repository }}"
+        id: build
+        uses: $/
+        with:
+          java-version: "${{ matrix.java }}"
+          gradle-version: "${{ matrix.gradle.version }}"
+          path_prefix: "tests/fixtures/gradle-project"
+          # The default artifact name is the same in every cell
+          artifact-upload: "false"
+
+      - name: "Validate action outputs"
+        shell: bash
+        env:
+          WANT_GRADLE: "${{ matrix.gradle.version }}"
+          WANT_JAVA: "${{ matrix.java }}"
+          GRADLE_VERSION: "${{ steps.build.outputs.gradle-version }}"
+          JAVA_VERSION: "${{ steps.build.outputs.java-version }}"
+          JAVA_DISTRIBUTION: "${{ steps.build.outputs.java-distribution }}"
+        run: |
+          # Validate action outputs
+          set -euo pipefail
+          errors=0
+          if [ "$GRADLE_VERSION" = "$WANT_GRADLE" ]; then
+            echo "OK: gradle-version=$GRADLE_VERSION"
+          else
+            echo "Error: want Gradle $WANT_GRADLE, got '$GRADLE_VERSION'"
+            errors=1
+          fi
+          # Require a separator after the feature release: 2 is not 21
+          case "$JAVA_VERSION" in
+            "$WANT_JAVA" | "$WANT_JAVA".* | "$WANT_JAVA"+*)
+              echo "OK: java-version=$JAVA_VERSION" ;;
+            *)
+              echo "Error: want Java $WANT_JAVA, got '$JAVA_VERSION'"
+              errors=1 ;;
+          esac
+          # actions/setup-java reports 'temurin' as Temurin-Hotspot
+          if [ "$JAVA_DISTRIBUTION" = "Temurin-Hotspot" ]; then
+            echo "OK: java-distribution=$JAVA_DISTRIBUTION"
+          else
+            echo "Error: bad java-distribution '$JAVA_DISTRIBUTION'"
+            errors=1
+          fi
+          exit "$errors"
+
+      - name: "Check Gradle, JDK, jars and test results"
+        shell: bash
+        env:
+          WANT_GRADLE: "${{ matrix.gradle.version }}"
+          WANT_JAVA: "${{ matrix.java }}"
+        run: |
+          # Check Gradle, JDK, jars and test results
+          bash tests/check-gradle-build.sh tests/fixtures/gradle-project \
+            "$WANT_GRADLE" "$WANT_JAVA"
