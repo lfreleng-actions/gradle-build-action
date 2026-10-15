@@ -167,6 +167,23 @@ that Gradle version and invokes `gradle` directly. The action uses
 [gradle/actions/setup-gradle](https://github.com/gradle/actions/tree/main/setup-gradle)
 under the hood.
 
+## Supported Gradle and Java versions
+
+CI runs this action on every Gradle release and Java version pair in the
+`gradle_cells` output of the shared
+[`java-maven-versions.yaml`](https://github.com/lfreleng-actions/java-workflows/blob/main/.github/workflows/java-maven-versions.yaml)
+workflow in `lfreleng-actions/java-workflows`, building the fixture in
+`tests/fixtures/gradle-project` with `gradle-version` set:
+
+| Gradle | Java                   |
+| ------ | ---------------------- |
+| 8      | 17, 21, 22, 23, 24     |
+| 9      | 17, 21, 22, 23, 24, 25 |
+
+Gradle 8 does not support running on Java 25, so the matrix excludes
+that pair. Each cell checks the action outputs, `gradle --version` and
+the JVM that ran the fixture's tests with `tests/check-gradle-build.sh`.
+
 ## Notes
 
 - The [setup-java documentation](https://github.com/actions/setup-java?tab=readme-ov-file#supported-distributions)

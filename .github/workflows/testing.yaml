@@ -126,3 +126,61 @@ jobs:
           # Error if step above did NOT fail
           echo "Error: previous test step did NOT fail ❌"
           exit 1
+
+  ### Shared Gradle/Java compatibility matrix ###
+  versions:
+    name: "Java/Gradle versions"
+    permissions: {}
+    # yamllint disable-line rule:line-length
+    uses: lfreleng-actions/java-workflows/.github/workflows/java-maven-versions.yaml@7bb1071df52ffc3fb4c2280511fe257041e259d8  # v0.7.0
+
+  # Run the action on every supported Gradle/Java pair against the fixture
+  # under tests/fixtures/gradle-project. The gradle_cells list is not a
+  # cross product (Gradle 8 cannot run on Java 25), so use it as-is.
+  compatibility:
+    # yamllint disable-line rule:line-length
+    name: "Compatibility (Gradle ${{ matrix.gradle.line }}, JDK ${{ matrix.java }})"
+    needs: versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.versions.outputs.gradle_cells) }}
+    steps:
+      # Harden the runner used by this workflow
+      # yamllint disable-line rule:line-length
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      # yamllint disable-line rule:line-length
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: "Running local action: ${{ github.repository }}"
+        id: build
+        uses: $/
+        with:
+          java-version: "${{ matrix.java }}"
+          gradle-version: "${{ matrix.gradle.version }}"
+          path_prefix: "tests/fixtures/gradle-project"
+          # Every cell would upload under the same default name
+          artifact-upload: "false"
+
+      - name: "Verify Gradle release, JDK and build"
+        shell: bash
+        env:
+          ACTION_GRADLE_VERSION: "${{ steps.build.outputs.gradle-version }}"
+          ACTION_JAVA_VERSION: "${{ steps.build.outputs.java-version }}"
+          # yamllint disable-line rule:line-length
+          ACTION_JAVA_DISTRIBUTION: "${{ steps.build.outputs.java-distribution }}"
+          GRADLE_VERSION: "${{ matrix.gradle.version }}"
+          JAVA_VERSION: "${{ matrix.java }}"
+        run: |
+          # Verify Gradle release, JDK and build
+          bash tests/check-gradle-build.sh tests/fixtures/gradle-project \
+            "$GRADLE_VERSION" "$JAVA_VERSION"
