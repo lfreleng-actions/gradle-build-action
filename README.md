@@ -167,6 +167,25 @@ that Gradle version and invokes `gradle` directly. The action uses
 [gradle/actions/setup-gradle](https://github.com/gradle/actions/tree/main/setup-gradle)
 under the hood.
 
+## Supported Gradle and Java versions
+
+CI runs this action on every Gradle and Java pair listed in the
+`gradle_cells` output of the shared
+[`java-maven-versions.yaml`](https://github.com/lfreleng-actions/java-workflows/blob/main/.github/workflows/java-maven-versions.yaml)
+workflow from `lfreleng-actions/java-workflows`. Each cell builds the
+fixture in `tests/fixtures/gradle-project` with the listed Gradle
+release on the listed Temurin JDK, then runs
+`tests/check-gradle-build.sh` to confirm the Gradle release, the
+launcher and test JVMs, the module jars and the test results.
+
+| Gradle | Java                   |
+| ------ | ---------------------- |
+| 8      | 17, 21, 22, 23, 24     |
+| 9      | 17, 21, 22, 23, 24, 25 |
+
+Gradle 8 does not support running on Java 25, so the matrix excludes
+that pair.
+
 ## Notes
 
 - The [setup-java documentation](https://github.com/actions/setup-java?tab=readme-ov-file#supported-distributions)
