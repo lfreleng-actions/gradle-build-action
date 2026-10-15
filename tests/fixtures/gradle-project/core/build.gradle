@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+plugins {
+    id 'java-library'
+}
+
+// No Java toolchain: compile and test on the JDK that runs Gradle.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
