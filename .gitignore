@@ -58,3 +58,7 @@ MANIFEST
 
 # Node
 node_modules/*
+
+# Gradle
+.gradle/
+tests/fixtures/**/build/

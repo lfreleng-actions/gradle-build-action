@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+// Minimal fixture build for the compatibility matrix in
+// .github/workflows/testing.yaml. It sets no Java toolchain on purpose:
+// the tests then run on the JDK that runs Gradle, which is the JDK the
+// matrix cell asks the action to install.
+rootProject.name = 'gradle-project'
+
+include 'core', 'app'

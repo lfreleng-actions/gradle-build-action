@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+dependencies {
+    implementation project(':core')
+
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    // The test records the Java version of the JVM it runs on here, so
+    // tests/check-gradle-build.sh can prove which JDK ran the tests.
+    def jvmFile = layout.buildDirectory.file('test-jvm/java-specification-version.txt')
+    outputs.file(jvmFile)
+    systemProperty 'fixture.jvmFile', jvmFile.get().asFile.absolutePath
+}
