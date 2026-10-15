@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 The Linux Foundation
+
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+// No Java toolchain: compile and test on the JDK that runs Gradle.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    implementation project(':core')
+    testImplementation platform('org.junit:junit-bom:5.13.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // The test records the JVM it runs on here, for CI to check
+    def jvmFile = layout.buildDirectory.file('test-jvm/java-specification-version.txt')
+    outputs.file(jvmFile)
+    systemProperty 'fixture.jvmFile', jvmFile.get().asFile.absolutePath
+}
