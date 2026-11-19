@@ -132,7 +132,7 @@ jobs:
     name: "Java/Gradle versions"
     permissions: {}
     # yamllint disable-line rule:line-length
-    uses: lfreleng-actions/java-workflows/.github/workflows/java-maven-versions.yaml@a408046adeba05bcf505b8cc0fa240e21046cc10  # v0.7.3
+    uses: lfreleng-actions/java-workflows/.github/workflows/java-maven-versions.yaml@1e5aae1c31ef26070fce3e8917be6c2b2a26fbb8  # v0.8.0
 
   ### Run the action on every supported Gradle/Java pair ###
   compatibility:
